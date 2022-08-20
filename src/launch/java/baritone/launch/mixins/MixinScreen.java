@@ -17,12 +17,20 @@
 
 package baritone.launch.mixins;
 
+import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
+import baritone.api.event.events.ChatEvent;
 import baritone.utils.accessor.IGuiScreen;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.Style;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
 
 import java.net.URI;
 import net.minecraft.client.gui.screens.Screen;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Screen.class)
 public abstract class MixinScreen implements IGuiScreen {
@@ -30,4 +38,19 @@ public abstract class MixinScreen implements IGuiScreen {
     @Override
     @Invoker("openLink")
     public abstract void openLinkInvoker(URI url);
+
+    @Inject(method = "handleComponentClicked", at = @At(value = "INVOKE_ASSIGN", target = "Lnet/minecraft/network/chat/ClickEvent;getAction()Lnet/minecraft/network/chat/ClickEvent$Action;"), cancellable = true)
+    private void fixBaritoneClickCommand(Style arg, CallbackInfoReturnable<Boolean> cir) {
+        ClickEvent clickEvent = arg.getClickEvent();
+        if (clickEvent != null && clickEvent.getAction() == ClickEvent.Action.RUN_COMMAND) {
+            IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+            if (baritone != null) {
+                ChatEvent event = new ChatEvent(clickEvent.getValue());
+                baritone.getGameEventHandler().onSendChatMessage(event);
+                if (event.isCancelled()) {
+                    cir.setReturnValue(true);
+                }
+            }
+        }
+    }
 }
